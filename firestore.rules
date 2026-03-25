@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: kits
+    // Fields:
+    //   - name: string (required, 1-50 chars)
+    //   - identifier: string (required, 1-20 chars)
+    //   - description: string (optional, 0-200 chars)
+    //
+    // Collection: items
+    // Fields:
+    //   - kitId: string (required)
+    //   - name: string (required, 1-50 chars)
+    //   - totalQuantity: number (required, >= 0)
+    //   - availableQuantity: number (required, >= 0)
+    //
+    // Collection: users
+    // Fields:
+    //   - name: string (required, 1-100 chars)
+    //   - email: string (required, valid email)
+    //   - role: string (required, 'admin' or 'student')
+    //   - class: string (optional, 0-20 chars)
+    //
+    // Collection: loans
+    // Fields:
+    //   - userId: string (required)
+    //   - userName: string (required)
+    //   - kitId: string (required)
+    //   - kitName: string (required)
+    //   - items: list (required, max 50 items)
+    //   - status: string (required, 'active' or 'returned')
+    //   - createdAt: timestamp (required)
+    //   - returnedAt: timestamp (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "diegoroots3@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidKit(data) {
+      return data.keys().hasAll(['name', 'identifier']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 50 &&
+             data.identifier is string && data.identifier.size() > 0 && data.identifier.size() <= 20 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 200));
+    }
+
+    function isValidItem(data) {
+      return data.keys().hasAll(['kitId', 'name', 'totalQuantity', 'availableQuantity']) &&
+             data.kitId is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 50 &&
+             data.totalQuantity is number && data.totalQuantity >= 0 &&
+             data.availableQuantity is number && data.availableQuantity >= 0;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['name', 'email', 'role']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['admin', 'student'] &&
+             (!('class' in data) || (data.class is string && data.class.size() <= 20));
+    }
+
+    function isValidLoan(data) {
+      return data.keys().hasAll(['userId', 'userName', 'kitId', 'kitName', 'items', 'status', 'createdAt']) &&
+             data.userId is string &&
+             data.userName is string &&
+             data.kitId is string &&
+             data.kitName is string &&
+             data.items is list && data.items.size() <= 50 &&
+             data.status in ['active', 'returned'] &&
+             isValidTimestamp(data.createdAt) &&
+             (!('returnedAt' in data) || isValidTimestamp(data.returnedAt));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) && request.resource.data.role == 'student' || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) && request.resource.data.role == resource.data.role || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /kits/{kitId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() && isValidKit(request.resource.data);
+    }
+
+    match /items/{itemId} {
+      allow read: if isAuthenticated();
+      allow create, delete: if isAdmin() && isValidItem(request.resource.data);
+      allow update: if isAuthenticated() && (isAdmin() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['availableQuantity'])));
+    }
+
+    match /loans/{loanId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+      allow create: if isAuthenticated() && isValidLoan(request.resource.data) && (isOwner(request.resource.data.userId) || isAdmin());
+      allow update: if isAuthenticated() && isValidLoan(request.resource.data) && (isOwner(resource.data.userId) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

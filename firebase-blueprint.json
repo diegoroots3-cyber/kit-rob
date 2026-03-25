@@ -1,0 +1,71 @@
+{
+  "entities": {
+    "Kit": {
+      "title": "Kit",
+      "description": "A robotics kit containing multiple items.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the kit (e.g., Kit 01)" },
+        "identifier": { "type": "string", "description": "Unique identifier for the kit" },
+        "description": { "type": "string", "description": "Optional description" }
+      },
+      "required": ["name", "identifier"]
+    },
+    "Item": {
+      "title": "Item",
+      "description": "A specific component within a kit.",
+      "type": "object",
+      "properties": {
+        "kitId": { "type": "string", "description": "Reference to the Kit ID" },
+        "name": { "type": "string", "description": "Name of the item (e.g., Ultrasonic Sensor)" },
+        "totalQuantity": { "type": "integer", "description": "Total quantity in the kit" },
+        "availableQuantity": { "type": "integer", "description": "Current available quantity" }
+      },
+      "required": ["kitId", "name", "totalQuantity", "availableQuantity"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A student or teacher using the system.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name" },
+        "email": { "type": "string", "description": "Google email" },
+        "role": { "type": "string", "enum": ["admin", "student"], "description": "User role" },
+        "class": { "type": "string", "description": "Student's class (optional)" }
+      },
+      "required": ["name", "email", "role"]
+    },
+    "Loan": {
+      "title": "Loan",
+      "description": "A record of items withdrawn from a kit.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "ID of the user who took the items" },
+        "userName": { "type": "string", "description": "Name of the user" },
+        "kitId": { "type": "string", "description": "ID of the kit" },
+        "kitName": { "type": "string", "description": "Name of the kit" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "itemId": { "type": "string" },
+              "itemName": { "type": "string" },
+              "quantity": { "type": "integer" }
+            }
+          }
+        },
+        "status": { "type": "string", "enum": ["active", "returned"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "returnedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "kitId", "items", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/kits": { "schema": "Kit", "description": "Collection of robotics kits" },
+    "/items": { "schema": "Item", "description": "Collection of items within kits" },
+    "/users": { "schema": "User", "description": "System users" },
+    "/loans": { "schema": "Loan", "description": "Withdrawal and return history" }
+  }
+}

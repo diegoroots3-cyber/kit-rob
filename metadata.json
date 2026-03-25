@@ -1,0 +1,5 @@
+{
+  "name": "RoboKit Manager",
+  "description": "Sistema responsivo para gerenciamento de kits de robótica educacional, controle de retiradas e devoluções.",
+  "requestFramePermissions": ["camera"]
+}
