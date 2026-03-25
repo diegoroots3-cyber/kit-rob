@@ -14,7 +14,6 @@ import { handleFirestoreError, cn } from './lib/utils';
 import { 
   LayoutDashboard, 
   Package, 
-  QrCode, 
   History, 
   User as UserIcon, 
   LogOut, 
@@ -37,7 +36,6 @@ import {
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { QRCodeSVG } from 'qrcode.react';
-import QrScanner from 'react-qr-scanner';
 import { motion, AnimatePresence } from 'motion/react';
 import { DEFAULT_KIT_ITEMS } from './constants';
 import { sendMovementNotification } from './services/emailService';
@@ -146,7 +144,6 @@ const Header = () => {
           <>
             <nav className="hidden md:flex items-center gap-6">
               <Link to="/" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Início</Link>
-              <Link to="/scan" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Escanear</Link>
               <Link to="/history" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Histórico</Link>
               {isAdmin && <Link to="/admin" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Painel Admin</Link>}
             </nav>
@@ -186,9 +183,6 @@ const Header = () => {
           >
             <Link to="/" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 p-3 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 rounded-xl transition-colors">
               <Package className="w-5 h-5" /> Início
-            </Link>
-            <Link to="/scan" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 p-3 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 rounded-xl transition-colors">
-              <QrCode className="w-5 h-5" /> Escanear Kit
             </Link>
             <Link to="/history" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 p-3 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 rounded-xl transition-colors">
               <History className="w-5 h-5" /> Meu Histórico
@@ -343,13 +337,6 @@ const Dashboard = () => {
           <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">Olá, {user?.name.split(' ')[0]}!</h1>
           <p className="text-gray-500 dark:text-gray-400 font-medium">O que vamos construir hoje?</p>
         </div>
-        <Link 
-          to="/scan" 
-          className="flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-bold shadow-xl shadow-blue-100 dark:shadow-none hover:bg-blue-700 transition-all active:scale-95"
-        >
-          <QrCode className="w-5 h-5" />
-          Escanear Kit
-        </Link>
       </div>
 
       {activeLoans.length > 0 && (
@@ -724,70 +711,6 @@ const LoanDetails = () => {
           )}
         </button>
       )}
-    </main>
-  );
-};
-
-const ScanKit = () => {
-  const navigate = useNavigate();
-  const [error, setError] = useState('');
-
-  const handleScan = (data: any) => {
-    if (data) {
-      // Expected format: kitId
-      const kitId = data.text;
-      navigate(`/kit/${kitId}`);
-    }
-  };
-
-  const handleError = (err: any) => {
-    console.error(err);
-    setError('Erro ao acessar câmera. Verifique as permissões.');
-  };
-
-  return (
-    <main className="container mx-auto px-4 py-8 max-w-md">
-      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-500 font-bold mb-6 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors">
-        <ArrowLeft className="w-5 h-5" /> Voltar
-      </button>
-
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">Escanear Kit</h1>
-        <p className="text-gray-500 dark:text-gray-400 font-medium mt-2">Aponte a câmera para o QR Code do kit.</p>
-      </div>
-
-      <div className="relative aspect-square bg-black rounded-3xl overflow-hidden shadow-2xl border-4 border-white dark:border-gray-800">
-        <QrScanner
-          delay={300}
-          onError={handleError}
-          onScan={handleScan}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-        />
-        <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none">
-          <div className="w-full h-full border-2 border-blue-500 rounded-2xl relative">
-            <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-500 -mt-1 -ml-1"></div>
-            <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-500 -mt-1 -mr-1"></div>
-            <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-500 -mb-1 -ml-1"></div>
-            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-500 -mb-1 -mr-1"></div>
-          </div>
-        </div>
-      </div>
-
-      {error && (
-        <div className="mt-6 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-2xl flex items-center gap-3 text-sm font-medium border border-red-100 dark:border-red-900/30">
-          <AlertCircle className="w-5 h-5 shrink-0" />
-          {error}
-        </div>
-      )}
-
-      <div className="mt-12 p-6 bg-blue-50 dark:bg-blue-900/20 rounded-3xl border border-blue-100 dark:border-blue-900/30">
-        <h3 className="font-bold text-blue-900 dark:text-blue-300 mb-2 flex items-center gap-2">
-          <AlertCircle className="w-4 h-4" /> Dica
-        </h3>
-        <p className="text-sm text-blue-700 dark:text-blue-400 leading-relaxed">
-          Você também pode selecionar o kit manualmente na tela inicial se o QR Code estiver danificado.
-        </p>
-      </div>
     </main>
   );
 };
@@ -1373,7 +1296,6 @@ export default function App() {
               <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
               <Route path="/kit/:kitId" element={<PrivateRoute><KitDetails /></PrivateRoute>} />
               <Route path="/loan/:loanId" element={<PrivateRoute><LoanDetails /></PrivateRoute>} />
-              <Route path="/scan" element={<PrivateRoute><ScanKit /></PrivateRoute>} />
               <Route path="/history" element={<PrivateRoute><HistoryPage /></PrivateRoute>} />
               <Route path="/admin" element={<PrivateRoute><AdminPanel /></PrivateRoute>} />
               <Route path="/admin/kit/:kitId" element={<PrivateRoute><AdminKitEditor /></PrivateRoute>} />
