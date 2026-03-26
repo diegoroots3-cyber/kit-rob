@@ -7,7 +7,7 @@ import * as React from 'react';
 import { useState, useEffect, createContext, useContext, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, useParams } from 'react-router-dom';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, query, where, onSnapshot, orderBy, limit, addDoc, updateDoc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, getDocs, setDoc, collection, query, where, onSnapshot, orderBy, limit, addDoc, updateDoc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { auth, db, loginWithGoogle, logout } from './firebase';
 import { User, Kit, Item, Loan, OperationType } from './types';
 import { handleFirestoreError, cn } from './lib/utils';
@@ -970,8 +970,26 @@ const AdminPanel = () => {
 
   const handleDeleteKit = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este kit? Todos os itens associados também serão removidos.')) return;
-    // Note: In a real app, we'd also delete associated items. For simplicity here, just the kit.
-    // await deleteDoc(doc(db, 'kits', id));
+    try {
+      // 1. Delete associated items
+      const itemsSnapshot = await getDocs(query(collection(db, 'items'), where('kitId', '==', id)));
+      for (const itemDoc of itemsSnapshot.docs) {
+        await deleteDoc(doc(db, 'items', itemDoc.id));
+      }
+      
+      // 2. Delete the kit
+      await deleteDoc(doc(db, 'kits', id));
+      
+      // 3. Send Notification
+      await sendMovementNotification(
+        'Admin', 
+        'Exclusão de Kit', 
+        `Excluiu o kit ID: ${id} e todos os seus itens associados.`
+      );
+    } catch (err) {
+      console.error('Erro ao excluir kit:', err);
+      alert('Falha ao excluir o kit. Verifique os logs do console.');
+    }
   };
 
   if (!isAdmin) return <Navigate to="/" />;

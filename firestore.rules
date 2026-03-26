@@ -116,13 +116,15 @@ service cloud.firestore {
 
     match /kits/{kitId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() && isValidKit(request.resource.data);
+      allow create, update: if isAdmin() && isValidKit(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /items/{itemId} {
       allow read: if isAuthenticated();
-      allow create, delete: if isAdmin() && isValidItem(request.resource.data);
+      allow create: if isAdmin() && isValidItem(request.resource.data);
       allow update: if isAuthenticated() && (isAdmin() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['availableQuantity'])));
+      allow delete: if isAdmin();
     }
 
     match /loans/{loanId} {
