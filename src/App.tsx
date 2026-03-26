@@ -449,22 +449,46 @@ const Dashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredKits.map(kit => (
-            <Link 
-              key={kit.id} 
-              to={`/kit/${kit.id}`}
-              className="group bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-6 rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all"
-            >
-              <div className="w-14 h-14 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-blue-600 transition-colors">
-                <Package className="text-blue-600 dark:text-blue-400 w-7 h-7 group-hover:text-white transition-colors" />
-              </div>
-              <h3 className="text-lg font-black text-gray-900 dark:text-white mb-1">{kit.name}</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-4 line-clamp-2">{kit.description || 'Kit de robótica educacional.'}</p>
-              <div className="flex items-center text-blue-600 dark:text-blue-400 font-bold text-sm gap-1 group-hover:gap-2 transition-all">
-                Ver itens <ArrowRight className="w-4 h-4" />
-              </div>
-            </Link>
-          ))}
+          {filteredKits.map(kit => {
+            const normalize = (str: string) => 
+              (str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+            const searchLower = normalize(searchQuery);
+            
+            const matchingItems = searchQuery.trim() ? items.filter(item => 
+              item.kitId === kit.id && normalize(item.name).includes(searchLower)
+            ) : [];
+
+            return (
+              <Link 
+                key={kit.id} 
+                to={`/kit/${kit.id}`}
+                className="group bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-6 rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col"
+              >
+                <div className="w-14 h-14 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-blue-600 transition-colors">
+                  <Package className="text-blue-600 dark:text-blue-400 w-7 h-7 group-hover:text-white transition-colors" />
+                </div>
+                <h3 className="text-lg font-black text-gray-900 dark:text-white mb-1">{kit.name}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-4 line-clamp-2">{kit.description || 'Kit de robótica educacional.'}</p>
+                
+                {matchingItems.length > 0 && (
+                  <div className="mb-4 p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl border border-blue-100/50 dark:border-blue-800/30">
+                    <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-2">Itens encontrados:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {matchingItems.map(item => (
+                        <span key={item.id} className="text-[11px] font-bold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 px-2 py-1 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                          {item.totalQuantity}x {item.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-auto flex items-center text-blue-600 dark:text-blue-400 font-bold text-sm gap-1 group-hover:gap-2 transition-all">
+                  Ver itens <ArrowRight className="w-4 h-4" />
+                </div>
+              </Link>
+            );
+          })}
         </div>
 
         {filteredKits.length === 0 && (
