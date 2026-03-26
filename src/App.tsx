@@ -346,13 +346,15 @@ const Dashboard = () => {
   }, [user, isAdmin]);
 
   const filteredKits = kits.filter(kit => {
-    const searchLower = searchQuery.toLowerCase();
-    const matchesKitName = kit.name.toLowerCase().includes(searchLower);
-    const matchesKitIdentifier = kit.identifier.toLowerCase().includes(searchLower);
+    const searchLower = searchQuery.toLowerCase().trim();
+    if (!searchLower) return true;
+
+    const matchesKitName = (kit.name || '').toLowerCase().includes(searchLower);
+    const matchesKitIdentifier = (kit.identifier || '').toLowerCase().includes(searchLower);
     
     // Search within items of this kit
     const kitItems = items.filter(item => item.kitId === kit.id);
-    const matchesItemName = kitItems.some(item => item.name.toLowerCase().includes(searchLower));
+    const matchesItemName = kitItems.some(item => (item.name || '').toLowerCase().includes(searchLower));
     
     return matchesKitName || matchesKitIdentifier || matchesItemName;
   });
@@ -402,17 +404,37 @@ const Dashboard = () => {
       )}
 
       <section>
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Kits Disponíveis</h2>
-          <div className="relative hidden sm:block">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input 
-              type="text" 
-              placeholder="busca kit/ itens" 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 transition-all w-64 text-gray-900 dark:text-white"
-            />
+          <div className="flex w-full sm:w-auto gap-2">
+            <div className="relative flex-1 sm:w-80">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input 
+                type="text" 
+                placeholder="Buscar por kit ou itens..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                className="w-full pl-11 pr-10 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 dark:text-white shadow-sm"
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <button 
+              onClick={() => {
+                const input = document.querySelector('input[placeholder="Buscar por kit ou itens..."]') as HTMLInputElement;
+                input?.blur();
+              }}
+              className="md:hidden px-6 bg-blue-600 text-white rounded-2xl font-bold text-sm active:scale-95 transition-all"
+            >
+              Ir
+            </button>
           </div>
         </div>
 
