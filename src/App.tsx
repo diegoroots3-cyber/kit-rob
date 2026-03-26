@@ -970,15 +970,25 @@ const AdminPanel = () => {
 
   const handleDeleteKit = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este kit? Todos os itens associados também serão removidos.')) return;
+    
+    console.log('Iniciando exclusão do kit:', id);
     try {
       // 1. Delete associated items
       const itemsSnapshot = await getDocs(query(collection(db, 'items'), where('kitId', '==', id)));
-      for (const itemDoc of itemsSnapshot.docs) {
-        await deleteDoc(doc(db, 'items', itemDoc.id));
-      }
+      console.log(`Encontrados ${itemsSnapshot.size} itens para excluir.`);
+      
+      const deletePromises = itemsSnapshot.docs.map(itemDoc => {
+        console.log('Excluindo item:', itemDoc.id);
+        return deleteDoc(doc(db, 'items', itemDoc.id));
+      });
+      
+      await Promise.all(deletePromises);
+      console.log('Todos os itens foram excluídos.');
       
       // 2. Delete the kit
+      console.log('Excluindo o kit...');
       await deleteDoc(doc(db, 'kits', id));
+      console.log('Kit excluído com sucesso.');
       
       // 3. Send Notification
       await sendMovementNotification(
@@ -986,9 +996,11 @@ const AdminPanel = () => {
         'Exclusão de Kit', 
         `Excluiu o kit ID: ${id} e todos os seus itens associados.`
       );
+      
+      alert('Kit e itens associados excluídos com sucesso!');
     } catch (err) {
-      console.error('Erro ao excluir kit:', err);
-      alert('Falha ao excluir o kit. Verifique os logs do console.');
+      console.error('Erro detalhado ao excluir kit:', err);
+      alert('Falha ao excluir o kit. Verifique os logs do console para mais detalhes.');
     }
   };
 
