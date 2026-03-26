@@ -205,8 +205,10 @@ const Header = () => {
 // --- Pages ---
 
 const Login = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   const handleLogin = async () => {
     setLoading(true);
@@ -220,6 +222,33 @@ const Login = () => {
       setLoading(false);
     }
   };
+
+  if (user) {
+    return (
+      <div className="min-h-[calc(100vh-64px)] flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-950">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-lg bg-white dark:bg-gray-900 rounded-3xl shadow-2xl p-10 text-center border border-gray-100 dark:border-gray-800"
+        >
+          <div className="flex justify-center w-full mb-8">
+            <div className="w-24 h-24 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center">
+              <CheckCircle2 className="w-12 h-12 text-green-600 dark:text-green-400" />
+            </div>
+          </div>
+          <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">Login realizado!</h1>
+          <p className="text-gray-500 dark:text-gray-400 mb-8 font-medium">Bem-vindo de volta, {user.name}.</p>
+          
+          <button 
+            onClick={() => navigate('/')}
+            className="w-full h-14 bg-blue-600 text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-blue-700 transition-all active:scale-95 shadow-xl shadow-blue-100 dark:shadow-none"
+          >
+            Ir para o Painel <ArrowRight className="w-5 h-5" />
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[calc(100vh-64px)] flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-950">
