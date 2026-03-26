@@ -213,8 +213,8 @@ const Login = () => {
     setError('');
     try {
       await loginWithGoogle();
-    } catch (err) {
-      setError('Falha ao entrar com Google. Tente novamente.');
+    } catch (err: any) {
+      setError(`Falha ao entrar com Google: ${err.message || 'Erro desconhecido'}`);
       console.error(err);
     } finally {
       setLoading(false);
@@ -1246,29 +1246,35 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (userDoc.exists()) {
-          setUser({ id: userDoc.id, ...userDoc.data() } as User);
+      try {
+        if (firebaseUser) {
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (userDoc.exists()) {
+            setUser({ id: userDoc.id, ...userDoc.data() } as User);
+          } else {
+            // Create new student user by default
+            const newUser: User = {
+              id: firebaseUser.uid,
+              name: firebaseUser.displayName || 'Usuário',
+              email: firebaseUser.email || '',
+              role: firebaseUser.email === 'diegoroots3@gmail.com' ? 'admin' : 'student'
+            };
+            await setDoc(doc(db, 'users', firebaseUser.uid), {
+              name: newUser.name,
+              email: newUser.email,
+              role: newUser.role
+            });
+            setUser(newUser);
+          }
         } else {
-          // Create new student user by default
-          const newUser: User = {
-            id: firebaseUser.uid,
-            name: firebaseUser.displayName || 'Usuário',
-            email: firebaseUser.email || '',
-            role: firebaseUser.email === 'diegoroots3@gmail.com' ? 'admin' : 'student'
-          };
-          await setDoc(doc(db, 'users', firebaseUser.uid), {
-            name: newUser.name,
-            email: newUser.email,
-            role: newUser.role
-          });
-          setUser(newUser);
+          setUser(null);
         }
-      } else {
-        setUser(null);
+      } catch (error) {
+        console.error('Erro no AuthProvider:', error);
+        handleFirestoreError(error, OperationType.GET, 'users');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
   }, []);
 
