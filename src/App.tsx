@@ -4,7 +4,7 @@
  */
 
 import * as React from 'react';
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, createContext, useContext, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, useParams } from 'react-router-dom';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, query, where, onSnapshot, orderBy, limit, addDoc, updateDoc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
@@ -345,19 +345,29 @@ const Dashboard = () => {
     };
   }, [user, isAdmin]);
 
-  const filteredKits = kits.filter(kit => {
-    const searchLower = searchQuery.toLowerCase().trim();
-    if (!searchLower) return true;
+  const filteredKits = useMemo(() => {
+    const normalize = (str: string) => 
+      (str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    
+    const searchLower = normalize(searchQuery);
+    if (!searchLower) return kits;
 
-    const matchesKitName = (kit.name || '').toLowerCase().includes(searchLower);
-    const matchesKitIdentifier = (kit.identifier || '').toLowerCase().includes(searchLower);
-    
-    // Search within items of this kit
-    const kitItems = items.filter(item => item.kitId === kit.id);
-    const matchesItemName = kitItems.some(item => (item.name || '').toLowerCase().includes(searchLower));
-    
-    return matchesKitName || matchesKitIdentifier || matchesItemName;
-  });
+    return kits.filter(kit => {
+      const kitName = normalize(kit.name);
+      const kitIdentifier = normalize(kit.identifier);
+      const kitDescription = normalize(kit.description);
+      
+      const matchesKit = kitName.includes(searchLower) || 
+                        kitIdentifier.includes(searchLower) ||
+                        kitDescription.includes(searchLower);
+      
+      if (matchesKit) return true;
+
+      // Search within items of this kit
+      const kitItems = items.filter(item => item.kitId === kit.id);
+      return kitItems.some(item => normalize(item.name).includes(searchLower));
+    });
+  }, [kits, items, searchQuery]);
 
   if (loading) return <LoadingScreen />;
 
@@ -456,6 +466,22 @@ const Dashboard = () => {
             </Link>
           ))}
         </div>
+
+        {filteredKits.length === 0 && (
+          <div className="text-center py-20 bg-gray-50 dark:bg-gray-900/50 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-800">
+            <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Search className="w-10 h-10 text-gray-400" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Nenhum kit encontrado</h3>
+            <p className="text-gray-500 dark:text-gray-400">Tente buscar por outro nome ou verifique se o item está cadastrado.</p>
+            <button 
+              onClick={() => setSearchQuery('')}
+              className="mt-6 text-blue-600 dark:text-blue-400 font-bold hover:underline"
+            >
+              Limpar busca
+            </button>
+          </div>
+        )}
       </section>
     </main>
   );
