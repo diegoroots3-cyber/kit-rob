@@ -363,7 +363,8 @@ const Dashboard = () => {
       const result = kits.filter(kit => {
         const normalize = (str: string) => 
           (str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-        const isLocked = kit.description && normalize(kit.description) !== 'robotica';
+        const descNormalized = normalize(kit.description);
+        const isLocked = kit.description && descNormalized !== 'robotica' && descNormalized !== 'desfalcado';
         if (isLocked) return false;
 
         const kitItems = items.filter(item => item.kitId === kit.id);
@@ -383,11 +384,13 @@ const Dashboard = () => {
 
       // Sort for search: Kits with missing items (desfalcados) first
       return [...result].sort((a, b) => {
+        const normalize = (str: string) => 
+          (str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
         const aItems = items.filter(i => i.kitId === a.id);
         const bItems = items.filter(i => i.kitId === b.id);
         
-        const aHasMissing = aItems.some(i => i.availableQuantity < i.totalQuantity);
-        const bHasMissing = bItems.some(i => i.availableQuantity < i.totalQuantity);
+        const aHasMissing = aItems.some(i => i.availableQuantity < i.totalQuantity) || normalize(a.description) === 'desfalcado';
+        const bHasMissing = bItems.some(i => i.availableQuantity < i.totalQuantity) || normalize(b.description) === 'desfalcado';
         
         if (aHasMissing && !bHasMissing) return -1;
         if (!aHasMissing && bHasMissing) return 1;
@@ -530,8 +533,9 @@ const Dashboard = () => {
 
             const kitItems = items.filter(i => i.kitId === kit.id);
             const missingItems = kitItems.filter(i => i.availableQuantity < i.totalQuantity);
-            const isLocked = kit.description && normalize(kit.description) !== 'robotica';
-            const isComplete = kitItems.length > 0 && missingItems.length === 0;
+            const descNormalized = normalize(kit.description);
+            const isLocked = kit.description && descNormalized !== 'robotica' && descNormalized !== 'desfalcado';
+            const isComplete = kitItems.length > 0 && missingItems.length === 0 && descNormalized !== 'desfalcado';
 
             const CardContent = (
               <div className={cn(
