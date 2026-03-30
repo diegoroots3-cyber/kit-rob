@@ -531,6 +531,7 @@ const Dashboard = () => {
             const kitItems = items.filter(i => i.kitId === kit.id);
             const missingItems = kitItems.filter(i => i.availableQuantity < i.totalQuantity);
             const isLocked = kit.description && normalize(kit.description) !== 'robotica';
+            const isComplete = kitItems.length > 0 && missingItems.length === 0;
 
             const CardContent = (
               <div className={cn(
@@ -576,12 +577,12 @@ const Dashboard = () => {
                       ))}
                     </div>
                   </div>
-                ) : (
+                ) : isComplete ? (
                   <div className="mb-4 p-3 bg-green-50/50 dark:bg-green-900/10 rounded-2xl border border-green-100/50 dark:border-green-800/30 flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
                     <span className="text-xs font-bold text-green-700 dark:text-green-300">Completo</span>
                   </div>
-                )}
+                ) : null}
 
                 {matchingItems.length > 0 && (
                   <div className="mb-4 p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl border border-blue-100/50 dark:border-blue-800/30">
