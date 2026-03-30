@@ -323,6 +323,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [showOnlyComplete, setShowOnlyComplete] = useState(false);
 
   useEffect(() => {
     const kitsQuery = query(collection(db, 'kits'), orderBy('name'));
@@ -397,11 +398,20 @@ const Dashboard = () => {
     }
 
     // Default view: sort by name/identifier based on sortOrder
-    return [...kits].sort((a, b) => {
+    let result = [...kits];
+    
+    if (showOnlyComplete) {
+      result = result.filter(kit => {
+        const kitItems = items.filter(i => i.kitId === kit.id);
+        return kitItems.length > 0 && kitItems.every(i => i.availableQuantity === i.totalQuantity);
+      });
+    }
+
+    return result.sort((a, b) => {
       const comparison = a.name.localeCompare(b.name, undefined, { numeric: true });
       return sortOrder === 'asc' ? comparison : -comparison;
     });
-  }, [kits, items, searchQuery, sortOrder]);
+  }, [kits, items, searchQuery, sortOrder, showOnlyComplete]);
 
   if (loading) return <LoadingScreen />;
 
@@ -449,18 +459,32 @@ const Dashboard = () => {
 
       <section>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">Kits Disponíveis</h2>
-            {!searchQuery && (
+            <div className="flex items-center gap-2">
+              {!searchQuery && (
+                <button 
+                  onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+                  title={sortOrder === 'asc' ? 'Ordem Crescente' : 'Ordem Decrescente'}
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5" />
+                  {sortOrder === 'asc' ? 'Crescente' : 'Decrescente'}
+                </button>
+              )}
               <button 
-                onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
-                title={sortOrder === 'asc' ? 'Ordem Crescente' : 'Ordem Decrescente'}
+                onClick={() => setShowOnlyComplete(prev => !prev)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all",
+                  showOnlyComplete 
+                    ? "bg-green-600 text-white shadow-lg shadow-green-100 dark:shadow-none" 
+                    : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                )}
               >
-                <ArrowUpDown className="w-3.5 h-3.5" />
-                {sortOrder === 'asc' ? 'Crescente' : 'Decrescente'}
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {showOnlyComplete ? 'Apenas Completos' : 'Todos os Kits'}
               </button>
-            )}
+            </div>
           </div>
           <div className="flex w-full sm:w-auto gap-2">
             <div className="relative flex-1 sm:w-80">
@@ -539,7 +563,7 @@ const Dashboard = () => {
                   {kit.description || 'Kit de robótica educacional.'}
                 </p>
                 
-                {missingItems.length > 0 && (
+                {missingItems.length > 0 ? (
                   <div className="mb-4 p-3 bg-red-50/50 dark:bg-red-900/10 rounded-2xl border border-red-100/50 dark:border-red-800/30">
                     <p className="text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" /> Itens faltando:
@@ -551,6 +575,11 @@ const Dashboard = () => {
                         </span>
                       ))}
                     </div>
+                  </div>
+                ) : (
+                  <div className="mb-4 p-3 bg-green-50/50 dark:bg-green-900/10 rounded-2xl border border-green-100/50 dark:border-green-800/30 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+                    <span className="text-xs font-bold text-green-700 dark:text-green-300">Completo</span>
                   </div>
                 )}
 
@@ -1023,6 +1052,7 @@ const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState<'kits' | 'history' | 'stats' | 'users'>('kits');
   const [isAddingKit, setIsAddingKit] = useState(false);
   const [isAddingAdmin, setIsAddingAdmin] = useState(false);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [newKit, setNewKit] = useState({ name: '', identifier: '', description: '' });
   const [newAdmin, setNewAdmin] = useState({ name: '', email: '' });
   const [kitChecklist, setKitChecklist] = useState<Record<string, { selected: boolean, quantity: number }>>(
@@ -1223,7 +1253,17 @@ const AdminPanel = () => {
       {activeTab === 'kits' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Gerenciar Kits</h2>
+            <div className="flex items-center gap-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Gerenciar Kits</h2>
+              <button 
+                onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+                title={sortOrder === 'asc' ? 'Ordem Crescente' : 'Ordem Decrescente'}
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+                {sortOrder === 'asc' ? 'Crescente' : 'Decrescente'}
+              </button>
+            </div>
             <button 
               onClick={() => setIsAddingKit(true)}
               className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all"
@@ -1333,7 +1373,10 @@ const AdminPanel = () => {
           </AnimatePresence>
 
           <div className="grid grid-cols-1 gap-4">
-            {kits.map(kit => (
+            {[...kits].sort((a, b) => {
+              const comparison = a.name.localeCompare(b.name, undefined, { numeric: true });
+              return sortOrder === 'asc' ? comparison : -comparison;
+            }).map(kit => (
               <div key={kit.id} className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-6 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm">
                 <div className="flex items-center gap-4">
                   <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl">
@@ -1506,13 +1549,19 @@ const AdminKitEditor = () => {
   const [kit, setKit] = useState<Kit | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [isAddingItem, setIsAddingItem] = useState(false);
+  const [isEditingKitInfo, setIsEditingKitInfo] = useState(false);
+  const [editedKit, setEditedKit] = useState({ name: '', description: '' });
   const [newItem, setNewItem] = useState({ name: '', totalQuantity: 1 });
 
   useEffect(() => {
     if (!kitId) return;
     const fetchKit = async () => {
       const docSnap = await getDoc(doc(db, 'kits', kitId));
-      if (docSnap.exists()) setKit({ id: docSnap.id, ...docSnap.data() } as Kit);
+      if (docSnap.exists()) {
+        const kitData = { id: docSnap.id, ...docSnap.data() } as Kit;
+        setKit(kitData);
+        setEditedKit({ name: kitData.name, description: kitData.description || '' });
+      }
     };
     const unsubscribeItems = onSnapshot(query(collection(db, 'items'), where('kitId', '==', kitId)), (snapshot) => {
       setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Item)));
@@ -1554,6 +1603,22 @@ const AdminKitEditor = () => {
     }
   };
 
+  const handleUpdateKitInfo = async () => {
+    if (!kitId || !editedKit.name) return;
+    try {
+      await updateDoc(doc(db, 'kits', kitId), {
+        name: editedKit.name,
+        description: editedKit.description
+      });
+      setKit(prev => prev ? { ...prev, name: editedKit.name, description: editedKit.description } : null);
+      setIsEditingKitInfo(false);
+      alert('Kit atualizado com sucesso!');
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao atualizar informações do kit.');
+    }
+  };
+
   if (!kit) return <LoadingScreen />;
 
   return (
@@ -1563,8 +1628,59 @@ const AdminKitEditor = () => {
       </button>
 
       <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 p-8 shadow-sm mb-8">
-        <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-2">Editando {kit.name}</h1>
-        <p className="text-gray-500 dark:text-gray-400 font-medium">Gerencie os itens e quantidades deste kit.</p>
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            {isEditingKitInfo ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Nome do Kit</label>
+                  <input 
+                    type="text" 
+                    className="w-full p-3 bg-gray-50 dark:bg-gray-800 border-none rounded-xl focus:ring-2 focus:ring-blue-500 dark:text-white font-bold"
+                    value={editedKit.name}
+                    onChange={e => setEditedKit({ ...editedKit, name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Descrição / Detalhes</label>
+                  <textarea 
+                    className="w-full p-3 bg-gray-50 dark:bg-gray-800 border-none rounded-xl focus:ring-2 focus:ring-blue-500 dark:text-white min-h-[100px]"
+                    value={editedKit.description}
+                    onChange={e => setEditedKit({ ...editedKit, description: e.target.value })}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={handleUpdateKitInfo}
+                    className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all"
+                  >
+                    <Save className="w-4 h-4" /> Salvar Alterações
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setIsEditingKitInfo(false);
+                      setEditedKit({ name: kit.name, description: kit.description || '' });
+                    }}
+                    className="px-6 py-2 text-gray-500 font-bold"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-2">Editando {kit.name}</h1>
+                <p className="text-gray-500 dark:text-gray-400 font-medium">{kit.description || 'Sem descrição.'}</p>
+                <button 
+                  onClick={() => setIsEditingKitInfo(true)}
+                  className="mt-4 flex items-center gap-2 text-blue-600 dark:text-blue-400 font-bold text-sm hover:underline"
+                >
+                  <Edit2 className="w-4 h-4" /> Editar nome e detalhes
+                </button>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="space-y-6">
