@@ -272,7 +272,10 @@ const Login = () => {
         
         <div className="mb-8 p-6 bg-blue-50 dark:bg-blue-900/20 rounded-3xl border border-blue-100 dark:border-blue-800/50 text-center">
           <p className="text-blue-700 dark:text-blue-300 font-bold text-sm mb-1">Login Fácil e Seguro</p>
-          <p className="text-blue-600/70 dark:text-blue-400/70 text-xs">Use sua conta Google institucional para acessar instantaneamente.</p>
+          <p className="text-blue-600/70 dark:text-blue-400/70 text-xs mb-2">Use sua conta Google institucional para acessar instantaneamente.</p>
+          <p className="text-blue-800 dark:text-blue-200 text-[10px] font-black uppercase tracking-widest bg-blue-100 dark:bg-blue-900/40 py-1 px-3 rounded-full inline-block">
+            Todos os dados coletados em nosso sites são protegidos
+          </p>
         </div>
         
         {error && (
@@ -897,9 +900,12 @@ const AdminPanel = () => {
   const [kits, setKits] = useState<Kit[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [loans, setLoans] = useState<Loan[]>([]);
-  const [activeTab, setActiveTab] = useState<'kits' | 'history' | 'stats'>('kits');
+  const [users, setUsers] = useState<User[]>([]);
+  const [activeTab, setActiveTab] = useState<'kits' | 'history' | 'stats' | 'users'>('kits');
   const [isAddingKit, setIsAddingKit] = useState(false);
+  const [isAddingAdmin, setIsAddingAdmin] = useState(false);
   const [newKit, setNewKit] = useState({ name: '', identifier: '', description: '' });
+  const [newAdmin, setNewAdmin] = useState({ name: '', email: '' });
   const [kitChecklist, setKitChecklist] = useState<Record<string, { selected: boolean, quantity: number }>>(
     DEFAULT_KIT_ITEMS.reduce<Record<string, { selected: boolean, quantity: number }>>((acc, item) => ({
       ...acc,
@@ -922,10 +928,15 @@ const AdminPanel = () => {
       setLoans(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: (doc.data().createdAt as Timestamp)?.toDate() || new Date() } as Loan)));
     });
 
+    const unsubscribeUsers = onSnapshot(query(collection(db, 'users'), where('role', '==', 'admin')), (snapshot) => {
+      setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User)));
+    });
+
     return () => {
       unsubscribeKits();
       unsubscribeItems();
       unsubscribeLoans();
+      unsubscribeUsers();
     };
   }, [isAdmin]);
 
@@ -965,6 +976,37 @@ const AdminPanel = () => {
       );
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleAddAdmin = async () => {
+    if (!newAdmin.name || !newAdmin.email) return;
+    try {
+      // Check if user already exists by email
+      const q = query(collection(db, 'users'), where('email', '==', newAdmin.email));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        // Update existing user to admin
+        const userDoc = querySnapshot.docs[0];
+        await updateDoc(doc(db, 'users', userDoc.id), {
+          role: 'admin'
+        });
+      } else {
+        // Create a "pre-approved" admin document using email as ID
+        await setDoc(doc(db, 'users', newAdmin.email), {
+          name: newAdmin.name,
+          email: newAdmin.email,
+          role: 'admin'
+        });
+      }
+      
+      setNewAdmin({ name: '', email: '' });
+      setIsAddingAdmin(false);
+      alert('Administrador adicionado com sucesso!');
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao adicionar administrador.');
     }
   };
 
@@ -1012,11 +1054,11 @@ const AdminPanel = () => {
         <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">Painel Administrativo</h1>
       </div>
 
-      <div className="flex gap-2 mb-8 bg-gray-100 dark:bg-gray-900 p-1.5 rounded-2xl w-fit">
+      <div className="flex gap-2 mb-8 bg-gray-100 dark:bg-gray-900 p-1.5 rounded-2xl w-fit overflow-x-auto max-w-full">
         <button 
           onClick={() => setActiveTab('kits')}
           className={cn(
-            "px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
+            "px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap",
             activeTab === 'kits' 
               ? "bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm" 
               : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
@@ -1027,7 +1069,7 @@ const AdminPanel = () => {
         <button 
           onClick={() => setActiveTab('history')}
           className={cn(
-            "px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
+            "px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap",
             activeTab === 'history' 
               ? "bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm" 
               : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
@@ -1036,9 +1078,20 @@ const AdminPanel = () => {
           Movimentações
         </button>
         <button 
+          onClick={() => setActiveTab('users')}
+          className={cn(
+            "px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap",
+            activeTab === 'users' 
+              ? "bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm" 
+              : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+          )}
+        >
+          Administradores
+        </button>
+        <button 
           onClick={() => setActiveTab('stats')}
           className={cn(
-            "px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
+            "px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap",
             activeTab === 'stats' 
               ? "bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm" 
               : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
@@ -1224,6 +1277,73 @@ const AdminPanel = () => {
         </div>
       )}
 
+      {activeTab === 'users' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Gerenciar Administradores</h2>
+            <button 
+              onClick={() => setIsAddingAdmin(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all"
+            >
+              <Plus className="w-4 h-4" /> Novo Admin
+            </button>
+          </div>
+
+          <AnimatePresence>
+            {isAddingAdmin && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="bg-white dark:bg-gray-900 border border-blue-100 dark:border-blue-900/30 rounded-3xl p-6 shadow-xl shadow-blue-50 dark:shadow-none overflow-hidden"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <input 
+                    type="text" 
+                    placeholder="Nome Completo" 
+                    className="p-3 bg-gray-50 dark:bg-gray-800 border-none rounded-xl focus:ring-2 focus:ring-blue-500 dark:text-white"
+                    value={newAdmin.name}
+                    onChange={e => setNewAdmin({...newAdmin, name: e.target.value})}
+                  />
+                  <input 
+                    type="email" 
+                    placeholder="E-mail Google" 
+                    className="p-3 bg-gray-50 dark:bg-gray-800 border-none rounded-xl focus:ring-2 focus:ring-blue-500 dark:text-white"
+                    value={newAdmin.email}
+                    onChange={e => setNewAdmin({...newAdmin, email: e.target.value})}
+                  />
+                </div>
+                <div className="flex justify-end gap-3">
+                  <button onClick={() => setIsAddingAdmin(false)} className="px-4 py-2 text-gray-500 dark:text-gray-400 font-bold">Cancelar</button>
+                  <button onClick={handleAddAdmin} className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold">Criar Admin</button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="grid grid-cols-1 gap-4">
+            {users.map(admin => (
+              <div key={admin.id} className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-6 rounded-3xl flex items-center justify-between shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
+                    <UserIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900 dark:text-white">{admin.name}</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{admin.email}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                    Administrador
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {activeTab === 'stats' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white dark:bg-gray-900 p-8 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm">
@@ -1379,23 +1499,47 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return onAuthStateChanged(auth, async (firebaseUser) => {
       try {
         if (firebaseUser) {
+          // 1. Check by UID first
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          
           if (userDoc.exists()) {
             setUser({ id: userDoc.id, ...userDoc.data() } as User);
           } else {
-            // Create new student user by default
-            const newUser: User = {
-              id: firebaseUser.uid,
-              name: firebaseUser.displayName || 'Usuário',
-              email: firebaseUser.email || '',
-              role: firebaseUser.email === 'diegoroots3@gmail.com' ? 'admin' : 'student'
-            };
-            await setDoc(doc(db, 'users', firebaseUser.uid), {
-              name: newUser.name,
-              email: newUser.email,
-              role: newUser.role
-            });
-            setUser(newUser);
+            // 2. Check if there's a "pre-approved" document by email
+            const emailDoc = await getDoc(doc(db, 'users', firebaseUser.email || ''));
+            
+            if (emailDoc.exists()) {
+              const data = emailDoc.data();
+              // Promote email doc to UID doc
+              await setDoc(doc(db, 'users', firebaseUser.uid), {
+                name: firebaseUser.displayName || data.name,
+                email: firebaseUser.email,
+                role: data.role
+              });
+              // Delete the temporary email doc
+              await deleteDoc(doc(db, 'users', firebaseUser.email || ''));
+              
+              setUser({ 
+                id: firebaseUser.uid, 
+                name: firebaseUser.displayName || data.name,
+                email: firebaseUser.email || '',
+                role: data.role 
+              } as User);
+            } else {
+              // 3. Create new student user by default
+              const newUser: User = {
+                id: firebaseUser.uid,
+                name: firebaseUser.displayName || 'Usuário',
+                email: firebaseUser.email || '',
+                role: firebaseUser.email === 'diegoroots3@gmail.com' ? 'admin' : 'student'
+              };
+              await setDoc(doc(db, 'users', firebaseUser.uid), {
+                name: newUser.name,
+                email: newUser.email,
+                role: newUser.role
+              });
+              setUser(newUser);
+            }
           }
         } else {
           setUser(null);
