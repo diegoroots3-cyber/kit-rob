@@ -20,6 +20,7 @@ import {
   Plus, 
   Search, 
   ArrowRight, 
+  ArrowUpDown,
   CheckCircle2, 
   AlertCircle,
   ChevronRight,
@@ -321,6 +322,7 @@ const Dashboard = () => {
   const [activeLoans, setActiveLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
     const kitsQuery = query(collection(db, 'kits'), orderBy('name'));
@@ -355,38 +357,51 @@ const Dashboard = () => {
     
     const searchLower = normalize(searchQuery);
     
-    let result = kits;
     if (searchLower) {
-      result = kits.filter(kit => {
-        const kitName = normalize(kit.name);
-        const kitIdentifier = normalize(kit.identifier);
-        const kitDescription = normalize(kit.description);
-        
-        const matchesKit = kitName.includes(searchLower) || 
-                          kitIdentifier.includes(searchLower) ||
-                          kitDescription.includes(searchLower);
-        
-        if (matchesKit) return true;
+      // Filter kits: only those that have matching items AVAILABLE and are NOT locked
+      const result = kits.filter(kit => {
+        const normalize = (str: string) => 
+          (str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        const isLocked = kit.description && normalize(kit.description) !== 'robotica';
+        if (isLocked) return false;
 
-        // Search within items of this kit
         const kitItems = items.filter(item => item.kitId === kit.id);
-        return kitItems.some(item => normalize(item.name).includes(searchLower));
+        
+        // Check if any item matches the search AND is available
+        const hasAvailableMatch = kitItems.some(item => 
+          normalize(item.name).includes(searchLower) && item.availableQuantity > 0
+        );
+        
+        // Also allow searching by kit name/identifier, but only if it has ANY available items
+        const kitMatches = normalize(kit.name).includes(searchLower) || 
+                          normalize(kit.identifier).includes(searchLower);
+        const hasAnyAvailable = kitItems.some(item => item.availableQuantity > 0);
+        
+        return hasAvailableMatch || (kitMatches && hasAnyAvailable);
+      });
+
+      // Sort for search: Kits with missing items (desfalcados) first
+      return [...result].sort((a, b) => {
+        const aItems = items.filter(i => i.kitId === a.id);
+        const bItems = items.filter(i => i.kitId === b.id);
+        
+        const aHasMissing = aItems.some(i => i.availableQuantity < i.totalQuantity);
+        const bHasMissing = bItems.some(i => i.availableQuantity < i.totalQuantity);
+        
+        if (aHasMissing && !bHasMissing) return -1;
+        if (!aHasMissing && bHasMissing) return 1;
+        
+        // Secondary sort by name
+        return a.name.localeCompare(b.name, undefined, { numeric: true });
       });
     }
 
-    // Sort: Kits with missing items first
-    return [...result].sort((a, b) => {
-      const aItems = items.filter(i => i.kitId === a.id);
-      const bItems = items.filter(i => i.kitId === b.id);
-      
-      const aHasMissing = aItems.some(i => i.availableQuantity < i.totalQuantity);
-      const bHasMissing = bItems.some(i => i.availableQuantity < i.totalQuantity);
-      
-      if (aHasMissing && !bHasMissing) return -1;
-      if (!aHasMissing && bHasMissing) return 1;
-      return 0;
+    // Default view: sort by name/identifier based on sortOrder
+    return [...kits].sort((a, b) => {
+      const comparison = a.name.localeCompare(b.name, undefined, { numeric: true });
+      return sortOrder === 'asc' ? comparison : -comparison;
     });
-  }, [kits, items, searchQuery]);
+  }, [kits, items, searchQuery, sortOrder]);
 
   if (loading) return <LoadingScreen />;
 
@@ -434,7 +449,19 @@ const Dashboard = () => {
 
       <section>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Kits Disponíveis</h2>
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Kits Disponíveis</h2>
+            {!searchQuery && (
+              <button 
+                onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+                title={sortOrder === 'asc' ? 'Ordem Crescente' : 'Ordem Decrescente'}
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+                {sortOrder === 'asc' ? 'Crescente' : 'Decrescente'}
+              </button>
+            )}
+          </div>
           <div className="flex w-full sm:w-auto gap-2">
             <div className="relative flex-1 sm:w-80">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
