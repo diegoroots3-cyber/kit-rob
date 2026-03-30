@@ -358,11 +358,21 @@ const Dashboard = () => {
     
     const searchLower = normalize(searchQuery);
     
+    let result = [...kits];
+
+    // Apply "Only Complete" filter if active
+    if (showOnlyComplete) {
+      result = result.filter(kit => {
+        const kitItems = items.filter(i => i.kitId === kit.id);
+        const descNormalized = normalize(kit.description);
+        const hasMissing = kitItems.some(i => i.availableQuantity < i.totalQuantity) || descNormalized === 'desfalcado';
+        return kitItems.length > 0 && !hasMissing;
+      });
+    }
+    
     if (searchLower) {
       // Filter kits: only those that have matching items AVAILABLE and are NOT locked
-      const result = kits.filter(kit => {
-        const normalize = (str: string) => 
-          (str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      result = result.filter(kit => {
         const descNormalized = normalize(kit.description);
         const isLocked = kit.description && descNormalized !== 'robotica' && descNormalized !== 'desfalcado';
         if (isLocked) return false;
@@ -383,9 +393,7 @@ const Dashboard = () => {
       });
 
       // Sort for search: Kits with missing items (desfalcados) first
-      return [...result].sort((a, b) => {
-        const normalize = (str: string) => 
-          (str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      return result.sort((a, b) => {
         const aItems = items.filter(i => i.kitId === a.id);
         const bItems = items.filter(i => i.kitId === b.id);
         
@@ -401,15 +409,6 @@ const Dashboard = () => {
     }
 
     // Default view: sort by name/identifier based on sortOrder
-    let result = [...kits];
-    
-    if (showOnlyComplete) {
-      result = result.filter(kit => {
-        const kitItems = items.filter(i => i.kitId === kit.id);
-        return kitItems.length > 0 && kitItems.every(i => i.availableQuantity === i.totalQuantity);
-      });
-    }
-
     return result.sort((a, b) => {
       const comparison = a.name.localeCompare(b.name, undefined, { numeric: true });
       return sortOrder === 'asc' ? comparison : -comparison;
