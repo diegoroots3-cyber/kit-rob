@@ -5,7 +5,7 @@
 
 import * as React from 'react';
 import { useState, useEffect, createContext, useContext, useMemo } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, useParams } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, getDocs, setDoc, collection, query, where, onSnapshot, orderBy, limit, addDoc, updateDoc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { auth, db, loginWithGoogle, logout } from './firebase';
@@ -31,7 +31,8 @@ import {
   Edit2,
   Save,
   Sun,
-  Moon
+  Moon,
+  Lock
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -353,22 +354,37 @@ const Dashboard = () => {
       (str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     
     const searchLower = normalize(searchQuery);
-    if (!searchLower) return kits;
+    
+    let result = kits;
+    if (searchLower) {
+      result = kits.filter(kit => {
+        const kitName = normalize(kit.name);
+        const kitIdentifier = normalize(kit.identifier);
+        const kitDescription = normalize(kit.description);
+        
+        const matchesKit = kitName.includes(searchLower) || 
+                          kitIdentifier.includes(searchLower) ||
+                          kitDescription.includes(searchLower);
+        
+        if (matchesKit) return true;
 
-    return kits.filter(kit => {
-      const kitName = normalize(kit.name);
-      const kitIdentifier = normalize(kit.identifier);
-      const kitDescription = normalize(kit.description);
-      
-      const matchesKit = kitName.includes(searchLower) || 
-                        kitIdentifier.includes(searchLower) ||
-                        kitDescription.includes(searchLower);
-      
-      if (matchesKit) return true;
+        // Search within items of this kit
+        const kitItems = items.filter(item => item.kitId === kit.id);
+        return kitItems.some(item => normalize(item.name).includes(searchLower));
+      });
+    }
 
-      // Search within items of this kit
-      const kitItems = items.filter(item => item.kitId === kit.id);
-      return kitItems.some(item => normalize(item.name).includes(searchLower));
+    // Sort: Kits with missing items first
+    return [...result].sort((a, b) => {
+      const aItems = items.filter(i => i.kitId === a.id);
+      const bItems = items.filter(i => i.kitId === b.id);
+      
+      const aHasMissing = aItems.some(i => i.availableQuantity < i.totalQuantity);
+      const bHasMissing = bItems.some(i => i.availableQuantity < i.totalQuantity);
+      
+      if (aHasMissing && !bHasMissing) return -1;
+      if (!aHasMissing && bHasMissing) return 1;
+      return 0;
     });
   }, [kits, items, searchQuery]);
 
@@ -461,18 +477,56 @@ const Dashboard = () => {
               item.kitId === kit.id && normalize(item.name).includes(searchLower)
             ) : [];
 
-            return (
-              <Link 
-                key={kit.id} 
-                to={`/kit/${kit.id}`}
-                className="group bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-6 rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col"
-              >
-                <div className="w-14 h-14 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-blue-600 transition-colors">
-                  <Package className="text-blue-600 dark:text-blue-400 w-7 h-7 group-hover:text-white transition-colors" />
+            const kitItems = items.filter(i => i.kitId === kit.id);
+            const missingItems = kitItems.filter(i => i.availableQuantity < i.totalQuantity);
+            const isLocked = kit.description && normalize(kit.description) !== 'robotica';
+
+            const CardContent = (
+              <div className={cn(
+                "group bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-6 rounded-3xl shadow-sm transition-all flex flex-col h-full",
+                !isLocked && "hover:shadow-xl hover:-translate-y-1 cursor-pointer"
+              )}>
+                <div className="flex items-start justify-between mb-4">
+                  <div className={cn(
+                    "w-14 h-14 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center transition-colors",
+                    !isLocked && "group-hover:bg-blue-600"
+                  )}>
+                    <Package className={cn(
+                      "text-blue-600 dark:text-blue-400 w-7 h-7 transition-colors",
+                      !isLocked && "group-hover:text-white"
+                    )} />
+                  </div>
+                  {isLocked && (
+                    <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-xl text-gray-400" title="Kit fixo com professor">
+                      <Lock className="w-5 h-5" />
+                    </div>
+                  )}
                 </div>
-                <h3 className="text-lg font-black text-gray-900 dark:text-white mb-1">{kit.name}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-4 line-clamp-2">{kit.description || 'Kit de robótica educacional.'}</p>
                 
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-lg font-black text-gray-900 dark:text-white">{kit.name}</h3>
+                  {isLocked && <div className="w-2 h-2 bg-gray-400 rounded-full" />}
+                </div>
+                
+                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-4 line-clamp-2">
+                  {kit.description || 'Kit de robótica educacional.'}
+                </p>
+                
+                {missingItems.length > 0 && (
+                  <div className="mb-4 p-3 bg-red-50/50 dark:bg-red-900/10 rounded-2xl border border-red-100/50 dark:border-red-800/30">
+                    <p className="text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" /> Itens faltando:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {missingItems.map(item => (
+                        <span key={item.id} className="text-[11px] font-bold text-red-700 dark:text-red-300 bg-white dark:bg-gray-800 px-2 py-1 rounded-xl border border-red-100 dark:border-red-900/30 shadow-sm">
+                          {item.totalQuantity - item.availableQuantity}x {item.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {matchingItems.length > 0 && (
                   <div className="mb-4 p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl border border-blue-100/50 dark:border-blue-800/30">
                     <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-2">Itens encontrados:</p>
@@ -486,9 +540,29 @@ const Dashboard = () => {
                   </div>
                 )}
 
-                <div className="mt-auto flex items-center text-blue-600 dark:text-blue-400 font-bold text-sm gap-1 group-hover:gap-2 transition-all">
-                  Ver itens <ArrowRight className="w-4 h-4" />
+                <div className={cn(
+                  "mt-auto flex items-center font-bold text-sm gap-1 transition-all",
+                  isLocked 
+                    ? "text-gray-400 cursor-not-allowed" 
+                    : "text-blue-600 dark:text-blue-400 group-hover:gap-2"
+                )}>
+                  {isLocked ? 'Kit Fixo' : 'Ver itens'} {!isLocked && <ArrowRight className="w-4 h-4" />}
                 </div>
+              </div>
+            );
+
+            if (isLocked) {
+              return <div key={kit.id}>{CardContent}</div>;
+            }
+
+            return (
+              <Link 
+                key={kit.id} 
+                to={`/kit/${kit.id}`}
+                state={{ searchQuery }}
+                className="block"
+              >
+                {CardContent}
               </Link>
             );
           })}
@@ -518,11 +592,14 @@ const KitDetails = () => {
   const { kitId } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [kit, setKit] = useState<Kit | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [selectedItems, setSelectedItems] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  const searchQuery = location.state?.searchQuery || '';
 
   useEffect(() => {
     if (!kitId) return;
@@ -543,6 +620,14 @@ const KitDetails = () => {
     fetchKit();
     return () => unsubscribeItems();
   }, [kitId]);
+
+  const filteredItems = useMemo(() => {
+    if (!searchQuery.trim()) return items;
+    const normalize = (str: string) => 
+      (str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const searchLower = normalize(searchQuery);
+    return items.filter(item => normalize(item.name).includes(searchLower));
+  }, [items, searchQuery]);
 
   const handleQuantityChange = (itemId: string, delta: number, available: number) => {
     setSelectedItems(prev => {
@@ -632,8 +717,15 @@ const KitDetails = () => {
       </div>
 
       <div className="space-y-4 mb-24">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white px-2">Itens do Kit</h2>
-        {items.map(item => (
+        <div className="flex items-center justify-between px-2">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Itens do Kit</h2>
+          {searchQuery && (
+            <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full">
+              Filtrado por: {searchQuery}
+            </span>
+          )}
+        </div>
+        {filteredItems.map(item => (
           <div key={item.id} className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-5 rounded-3xl flex items-center justify-between shadow-sm">
             <div className="flex-1">
               <h3 className="font-bold text-gray-900 dark:text-white">{item.name}</h3>
@@ -1146,7 +1238,22 @@ const AdminPanel = () => {
                 </div>
 
                 <div className="mb-6">
-                  <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 px-1">Checklist de Itens Padrão</h3>
+                  <div className="flex items-center justify-between mb-4 px-1">
+                    <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300">Checklist de Itens Padrão</h3>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => {
+                          const allSelected = Object.values(kitChecklist).every((v: { selected: boolean }) => v.selected);
+                          const next = { ...kitChecklist };
+                          Object.keys(next).forEach(k => next[k].selected = !allSelected);
+                          setKitChecklist(next);
+                        }}
+                        className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        {Object.values(kitChecklist).every((v: { selected: boolean }) => v.selected) ? 'Desmarcar Todos' : 'Marcar Todos'}
+                      </button>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {DEFAULT_KIT_ITEMS.map((item, idx) => (
                       <div 
@@ -1412,6 +1519,14 @@ const AdminKitEditor = () => {
     }
   };
 
+  const handleUpdateItem = async (id: string, updates: Partial<Item>) => {
+    try {
+      await updateDoc(doc(db, 'items', id), updates);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   if (!kit) return <LoadingScreen />;
 
   return (
@@ -1470,10 +1585,29 @@ const AdminKitEditor = () => {
 
         <div className="grid grid-cols-1 gap-3">
           {items.map(item => (
-            <div key={item.id} className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-5 rounded-3xl flex items-center justify-between shadow-sm">
-              <div>
+            <div key={item.id} className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-5 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+              <div className="flex-1">
                 <h3 className="font-bold text-gray-900 dark:text-white">{item.name}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Total: {item.totalQuantity} | Disponível: {item.availableQuantity}</p>
+                <div className="flex items-center gap-4 mt-2">
+                  <div className="flex flex-col">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Total</label>
+                    <input 
+                      type="number" 
+                      className="w-20 p-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-bold dark:text-white"
+                      value={item.totalQuantity}
+                      onChange={e => handleUpdateItem(item.id, { totalQuantity: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Disponível</label>
+                    <input 
+                      type="number" 
+                      className="w-20 p-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-bold dark:text-white"
+                      value={item.availableQuantity}
+                      onChange={e => handleUpdateItem(item.id, { availableQuantity: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+                </div>
               </div>
               <button 
                 onClick={() => handleDeleteItem(item.id)}
