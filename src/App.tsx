@@ -329,11 +329,17 @@ const Dashboard = () => {
     const kitsQuery = query(collection(db, 'kits'), orderBy('name'));
     const unsubscribeKits = onSnapshot(kitsQuery, (snapshot) => {
       setKits(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Kit)));
+    }, (error) => {
+      console.error('Erro ao carregar kits:', error);
+      try { handleFirestoreError(error, OperationType.GET, 'kits'); } catch (e) {}
     });
 
     const itemsQuery = query(collection(db, 'items'));
     const unsubscribeItems = onSnapshot(itemsQuery, (snapshot) => {
       setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Item)));
+    }, (error) => {
+      console.error('Erro ao carregar itens:', error);
+      try { handleFirestoreError(error, OperationType.GET, 'items'); } catch (e) {}
     });
 
     const loansQuery = isAdmin 
@@ -343,6 +349,10 @@ const Dashboard = () => {
     const unsubscribeLoans = onSnapshot(loansQuery, (snapshot) => {
       setActiveLoans(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: (doc.data().createdAt as Timestamp).toDate() } as Loan)));
       setLoading(false);
+    }, (error) => {
+      console.error('Erro ao carregar empréstimos:', error);
+      setLoading(false);
+      try { handleFirestoreError(error, OperationType.GET, 'loans'); } catch (e) {}
     });
 
     return () => {
@@ -675,6 +685,10 @@ const KitDetails = () => {
     const unsubscribeItems = onSnapshot(itemsQuery, (snapshot) => {
       setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Item)));
       setLoading(false);
+    }, (error) => {
+      console.error('Erro ao carregar itens do kit:', error);
+      setLoading(false);
+      try { handleFirestoreError(error, OperationType.GET, 'items'); } catch (e) {}
     });
 
     fetchKit();
@@ -865,6 +879,10 @@ const LoanDetails = () => {
         setLoan({ id: snapshot.id, ...snapshot.data(), createdAt: (snapshot.data().createdAt as Timestamp).toDate() } as Loan);
       }
       setLoading(false);
+    }, (error) => {
+      console.error('Erro ao carregar detalhes do empréstimo:', error);
+      setLoading(false);
+      try { handleFirestoreError(error, OperationType.GET, 'loans'); } catch (e) {}
     });
     return () => unsubscribe();
   }, [loanId]);
@@ -990,6 +1008,10 @@ const HistoryPage = () => {
         createdAt: (doc.data().createdAt as Timestamp)?.toDate() || new Date()
       } as Loan)));
       setLoading(false);
+    }, (error) => {
+      console.error('Erro ao carregar histórico:', error);
+      setLoading(false);
+      try { handleFirestoreError(error, OperationType.GET, 'loans'); } catch (e) {}
     });
     return () => unsubscribe();
   }, [user]);
@@ -1071,18 +1093,30 @@ const AdminPanel = () => {
     
     const unsubscribeKits = onSnapshot(collection(db, 'kits'), (snapshot) => {
       setKits(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Kit)));
+    }, (error) => {
+      console.error('Erro ao carregar kits (admin):', error);
+      try { handleFirestoreError(error, OperationType.GET, 'kits'); } catch (e) {}
     });
 
     const unsubscribeItems = onSnapshot(collection(db, 'items'), (snapshot) => {
       setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Item)));
+    }, (error) => {
+      console.error('Erro ao carregar itens (admin):', error);
+      try { handleFirestoreError(error, OperationType.GET, 'items'); } catch (e) {}
     });
 
     const unsubscribeLoans = onSnapshot(query(collection(db, 'loans'), orderBy('createdAt', 'desc'), limit(50)), (snapshot) => {
       setLoans(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: (doc.data().createdAt as Timestamp)?.toDate() || new Date() } as Loan)));
+    }, (error) => {
+      console.error('Erro ao carregar empréstimos (admin):', error);
+      try { handleFirestoreError(error, OperationType.GET, 'loans'); } catch (e) {}
     });
 
     const unsubscribeUsers = onSnapshot(query(collection(db, 'users'), where('role', '==', 'admin')), (snapshot) => {
       setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User)));
+    }, (error) => {
+      console.error('Erro ao carregar administradores:', error);
+      try { handleFirestoreError(error, OperationType.GET, 'users'); } catch (e) {}
     });
 
     return () => {
@@ -1569,6 +1603,9 @@ const AdminKitEditor = () => {
     };
     const unsubscribeItems = onSnapshot(query(collection(db, 'items'), where('kitId', '==', kitId)), (snapshot) => {
       setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Item)));
+    }, (error) => {
+      console.error('Erro ao carregar itens do kit (admin):', error);
+      try { handleFirestoreError(error, OperationType.GET, 'items'); } catch (e) {}
     });
     fetchKit();
     return () => unsubscribeItems();
@@ -1787,9 +1824,9 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setUser({ id: userDoc.id, ...userDoc.data() } as User);
           } else {
             // 2. Check if there's a "pre-approved" document by email
-            const emailDoc = await getDoc(doc(db, 'users', firebaseUser.email || ''));
+            const emailDoc = firebaseUser.email ? await getDoc(doc(db, 'users', firebaseUser.email)) : null;
             
-            if (emailDoc.exists()) {
+            if (emailDoc && emailDoc.exists()) {
               const data = emailDoc.data();
               // Promote email doc to UID doc
               await setDoc(doc(db, 'users', firebaseUser.uid), {
@@ -1827,7 +1864,12 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       } catch (error) {
         console.error('Erro no AuthProvider:', error);
-        handleFirestoreError(error, OperationType.GET, 'users');
+        // Log the error but don't throw to avoid blocking the app
+        try {
+          handleFirestoreError(error, OperationType.GET, 'users');
+        } catch (e) {
+          // handleFirestoreError throws, which we catch here
+        }
       } finally {
         setLoading(false);
       }
